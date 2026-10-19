@@ -1,0 +1,27 @@
+name: Vidro Launcher APK
+
+on:
+  push:
+    branches:
+      - vidro
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Build APK
+        run: ./gradlew assembleLawnWithQuickstepGithubDebug
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: VidroLauncher-APK
+          path: build/outputs/apk/**/*.apk

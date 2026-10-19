@@ -68,6 +68,8 @@ import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewTreeObserver;
+import app.lawnchair.glass.LiquidGlass;
 import android.view.ViewDebug;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.TextView;
@@ -190,6 +192,22 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     protected int mDisplay;
 
+    // Vidro líquido
+    private final boolean mGlass;
+    private final Rect mGlassRect = new Rect();
+    private final int[] mGlassLoc = new int[2];
+    private final int[] mGlassLastLoc = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE};
+    private final Rect mGlassSavedBounds = new Rect();
+    private boolean mGlassBoundsChanged = false;
+    private final Runnable mGlassInvalidate = this::invalidate;
+    private final ViewTreeObserver.OnPreDrawListener mGlassPreDraw = () -> {
+        getLocationOnScreen(mGlassLoc);
+        if (mGlassLoc[0] != mGlassLastLoc[0] || mGlassLoc[1] != mGlassLastLoc[1]) {
+            invalidate();
+        }
+        return true;
+    };
+
     private final CheckLongPressHelper mLongPressHelper;
 
     private boolean mLayoutHorizontal;
@@ -281,6 +299,12 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         mCenterVertically = a.getBoolean(R.styleable.BubbleTextView_centerVertically, false);
 
         mDisplay = a.getInteger(R.styleable.BubbleTextView_iconDisplay, DISPLAY_WORKSPACE);
+        mGlass = LiquidGlass.enabled
+                && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
+                && mDisplay == DISPLAY_WORKSPACE;
+        if (mGlass) {
+            LiquidGlass.init(context);
+        }
         final int defaultIconSize;
         if (mDisplay == DISPLAY_WORKSPACE) {
             setTextSize(TypedValue.COMPLEX_UNIT_PX, mDeviceProfile.iconTextSizePx);
@@ -920,8 +944,60 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (mGlass) {
+            getViewTreeObserver().addOnPreDrawListener(mGlassPreDraw);
+            LiquidGlass.addListener(mGlassInvalidate);
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (mGlass) {
+            getViewTreeObserver().removeOnPreDrawListener(mGlassPreDraw);
+            LiquidGlass.removeListener(mGlassInvalidate);
+        }
+        super.onDetachedFromWindow();
+    }
+
+    /** Desenha a base de vidro líquido atrás do ícone. */
+    protected void drawGlass(Canvas canvas) {
+        if (!mGlass || mIcon == null || getIcon() == null) {
+            return;
+        }
+        getIconBounds(mGlassRect);
+        getLocationOnScreen(mGlassLoc);
+        mGlassLastLoc[0] = mGlassLoc[0];
+        mGlassLastLoc[1] = mGlassLoc[1];
+        int count = canvas.save();
+        canvas.translate(getScrollX(), getScrollY());
+        LiquidGlass.draw(canvas, mGlassRect, mGlassLoc[0], mGlassLoc[1]);
+        canvas.restoreToCount(count);
+        // Encolhe o símbolo do app sobre o vidro (só durante o desenho; o layout não muda)
+        mGlassSavedBounds.set(mIcon.getBounds());
+        int w = mGlassSavedBounds.width();
+        int h = mGlassSavedBounds.height();
+        int insetX = Math.round(w * (1f - LiquidGlass.GLYPH_SCALE) / 2f);
+        int insetY = Math.round(h * (1f - LiquidGlass.GLYPH_SCALE) / 2f);
+        mIcon.setBounds(mGlassSavedBounds.left + insetX, mGlassSavedBounds.top + insetY,
+                mGlassSavedBounds.right - insetX, mGlassSavedBounds.bottom - insetY);
+        mGlassBoundsChanged = true;
+    }
+
+    /** Restaura o tamanho original do ícone depois do desenho. */
+    protected void restoreGlassBounds() {
+        if (mGlassBoundsChanged && mIcon != null) {
+            mIcon.setBounds(mGlassSavedBounds);
+        }
+        mGlassBoundsChanged = false;
+    }
+
+    @Override
     public void onDraw(Canvas canvas) {
+        drawGlass(canvas);
         super.onDraw(canvas);
+        restoreGlassBounds();
         drawDotIfNecessary(canvas);
         drawRunningAppIndicatorIfNecessary(canvas);
     }

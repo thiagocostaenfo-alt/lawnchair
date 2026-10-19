@@ -103,12 +103,16 @@ public class DoubleShadowBubbleTextView extends BubbleTextView {
 
     @Override
     public void onDraw(Canvas canvas) {
+        drawGlass(canvas);
         if (shouldDrawAppContrastTile() && !TextUtils.isEmpty(getText())) {
             drawAppContrastTile(canvas);
         }
         // If text is transparent or shadow alpha is 0, don't draw any shadow
         if (skipDoubleShadow()) {
-            super.onDraw(canvas);
+            drawWithoutDot(canvas);
+            restoreGlassBounds();
+            drawDotIfNecessary(canvas);
+            drawRunningAppIndicatorIfNecessary(canvas);
             return;
         }
         int alpha = Color.alpha(getCurrentTextColor());
@@ -130,6 +134,7 @@ public class DoubleShadowBubbleTextView extends BubbleTextView {
                 getTextShadowColor(mShadowInfo.getKeyShadowColor(), alpha));
         drawWithoutDot(canvas);
         canvas.restore();
+        restoreGlassBounds();
 
         drawDotIfNecessary(canvas);
         drawRunningAppIndicatorIfNecessary(canvas);

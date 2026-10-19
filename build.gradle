@@ -227,7 +227,7 @@ android {
 
         debug {
             applicationIdSuffix ".debug"
-            resValue("string", "derived_app_name", "Lawnchair (Debug)")
+            resValue("string", "derived_app_name", "Vidro Launcher")
 
             manifestPlaceholders.quickstepMinSdk = "0"
             manifestPlaceholders.quickstepMaxSdk = "100000"
@@ -269,6 +269,7 @@ android {
         github {
             applicationId 'app.lawnchair'
             dimension "channel"
+            isDefault true
         }
 
         nightly {
@@ -279,7 +280,6 @@ android {
         play {
             applicationId "app.lawnchair.play"
             dimension "channel"
-            isDefault true
         }
 
         configureEach {
